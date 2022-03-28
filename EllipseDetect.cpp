@@ -34,6 +34,14 @@ struct  point5d
 };
 
 
+//向量内积
+double dotProduct(point2d vec1, point2d vec2)
+{
+	return (vec1.x * vec2.x + vec1.y * vec2.y);
+}
+
+
+
 typedef struct PairGroup_s
 {
 	point pairGroupInd;
@@ -649,21 +657,21 @@ int fitEllipse2(double* S, double* ellicoeff)
 		{
 			if (eig_vector(index + 0, index) < 0)
 			{
-				ellicoeff[0] = -eig_vector(index + 0, index); 
-				ellicoeff[1] = -eig_vector(index + 1, index);
-				ellicoeff[2] = -eig_vector(index + 2, index);
-				ellicoeff[3] = -eig_vector(index + 3, index);
-				ellicoeff[4] = -eig_vector(index + 4, index);
-				ellicoeff[5] = -eig_vector(index + 5, index);
+				ellicoeff[0] = -eig_vector(0, index); 
+				ellicoeff[1] = -eig_vector(1, index);
+				ellicoeff[2] = -eig_vector(2, index);
+				ellicoeff[3] = -eig_vector(3, index);
+				ellicoeff[4] = -eig_vector(4, index);
+				ellicoeff[5] = -eig_vector(5, index);
 			}
 			else
 			{
-				ellicoeff[0] = eig_vector(index + 0, index); //[6*0+index];
-				ellicoeff[1] = eig_vector(index + 1, index); //[6*1+index];
-				ellicoeff[2] = eig_vector(index + 2, index); //[6*2+index];
-				ellicoeff[3] = eig_vector(index + 3, index); //[6*3+index];
-				ellicoeff[4] = eig_vector(index + 4, index); //[6*4+index];
-				ellicoeff[5] = eig_vector(index + 5, index); //[6*5+index];
+				ellicoeff[0] = eig_vector(0, index); //[6*0+index];
+				ellicoeff[1] = eig_vector(1, index); //[6*1+index];
+				ellicoeff[2] = eig_vector(2, index); //[6*2+index];
+				ellicoeff[3] = eig_vector(3, index); //[6*3+index];
+				ellicoeff[4] = eig_vector(4, index); //[6*4+index];
+				ellicoeff[5] = eig_vector(5, index); //[6*5+index];
 			}
 			return 1;
 		}
@@ -858,9 +866,9 @@ bool calcEllipseParametersAndValidate(double* lines, int line_num, vector<vector
 			}
 			info = fitEllipse(dataxy, first_group_inliers.size(), param2);
 			free(dataxy); //释放内存
-			cout << first_group_ind << endl;
-			cout << "param:" << param[0] << " " << param[1] << " " << param[2] << " " << param[3] << " " << param[4] << " " << endl;
-			cout << "param2:" << param2[0] << " " << param2[1] << " " << param2[2] << " " << param2[3] << " " << param2[4] << " " << endl;
+			//cout << first_group_ind << endl;
+			//cout << "param:" << param[0] << " " << param[1] << " " << param[2] << " " << param[3] << " " << param[4] << " " << endl;
+			//cout << "param2:" << param2[0] << " " << param2[1] << " " << param2[2] << " " << param2[3] << " " << param2[4] << " " << endl;
 			
 			if (info == 1 && isEllipseEqual(param2, param, 3 * distance_tolerance, 0.1, 0.1, 0.1, 0.9))
 			{
@@ -871,18 +879,107 @@ bool calcEllipseParametersAndValidate(double* lines, int line_num, vector<vector
 				ellipara->b = param2[3];
 				ellipara->phi = param2[4];
 
-				Mat img;
-				img = imread("C:/Users/65406/source/repos/EllipseDetect/EllipseDetect/ce1.png");
-				drawEllipse(img, param2);
+				//Mat img;
+				//img = imread("C:/Users/65406/source/repos/EllipseDetect/EllipseDetect/ce1.png");
+				//drawEllipse(img, param2);
 			}
 		}
 		return TRUE;//对于只有一个组的提取椭圆，此时直接返回
 	}
+	//接下来，对组队中的 second group进行内点准则验证，并且更新组的支持内点数量
+	if (flag1 == FALSE)//在组队运算中，如果第一个组都无法满足内点要求，直接返回false
+		return FALSE;
+
 
 	return FALSE;
 }
 
 
+inline bool regionLimitation(point2d point_g1s, point2d g1s_ls_dir, point2d point_g1e, point2d g1e_ls_dir, point2d point_g2s, point2d g2s_ls_dir, point2d point_g2e, point2d g2e_ls_dir, double polarity, double region_limitation_dis_tolerance)
+{
+	point2d g1m_ls_dir, g2m_ls_dir;
+	point2d g1s_arc_dir, g1e_arc_dir, g1m_arc_dir, g2s_arc_dir, g2e_arc_dir, g2m_arc_dir;
+	point2d test_vec1, test_vec2, test_vec3; //弧指向圆心的向量和测试向量
+	//组的pend<-pstart构成的向量为gim_arc_dir
+	double xdelta, ydelta, theta;
+	xdelta = point_g1e.x - point_g1s.x;
+	ydelta = point_g1e.y - point_g1s.y;
+	theta = atan2(ydelta, xdelta);
+	g1m_ls_dir.x = cos(theta); 
+	g1m_ls_dir.y = sin(theta);
+	xdelta = point_g2e.x - point_g2s.x;
+	ydelta = point_g2e.y - point_g2s.y;
+	theta = atan2(ydelta, xdelta);
+	g2m_ls_dir.x = cos(theta);
+	g2m_ls_dir.y = sin(theta);
+
+	if (polarity == 1)// polarity is equal 1, arc vector = (dy,-dx)
+	{
+		g1s_arc_dir.x = g1s_ls_dir.y; //start point dx
+		g1s_arc_dir.y = -g1s_ls_dir.x;//start point dy
+		g1e_arc_dir.x = g1e_ls_dir.y; //end point dx
+		g1e_arc_dir.y = -g1e_ls_dir.x;//end point dy
+		g1m_arc_dir.x = g1m_ls_dir.y; //mid point dx
+		g1m_arc_dir.y = -g1m_ls_dir.x;//mid point dy
+		g2s_arc_dir.x = g2s_ls_dir.y;
+		g2s_arc_dir.y = -g2s_ls_dir.x;
+		g2e_arc_dir.x = g2e_ls_dir.y;
+		g2e_arc_dir.y = -g2e_ls_dir.x;
+		g2m_arc_dir.x = g2m_ls_dir.y;
+		g2m_arc_dir.y = -g2m_ls_dir.x;
+	}
+	else// polarity is equal -1, arc vector = (-dy,dx)
+	{
+		g1s_arc_dir.x = -g1s_ls_dir.y;
+		g1s_arc_dir.y = g1s_ls_dir.x;
+		g1e_arc_dir.x = -g1e_ls_dir.y;
+		g1e_arc_dir.y = g1e_ls_dir.x;
+		g1m_arc_dir.x = -g1m_ls_dir.y;
+		g1m_arc_dir.y = g1m_ls_dir.x;
+		g2s_arc_dir.x = -g2s_ls_dir.y;
+		g2s_arc_dir.y = g2s_ls_dir.x;
+		g2e_arc_dir.x = -g2e_ls_dir.y;
+		g2e_arc_dir.y = g2e_ls_dir.x;
+		g2m_arc_dir.x = -g2m_ls_dir.y;
+		g2m_arc_dir.y = g2m_ls_dir.x;
+	}
+	test_vec1.x = (point_g2e.x - point_g1s.x); // 第2组线段的结束点 - 第一组线段的起始点
+	test_vec1.y = (point_g2e.y - point_g1s.y); // 第2组线段的结束点 - 第一组线段的起始点
+	test_vec2.x = (point_g2s.x - point_g1e.x); // 第2组线段的起始点 - 第一组线段的结束点
+	test_vec2.y = (point_g2s.y - point_g1e.y); // 第2组线段的起始点 - 第一组线段的结束点
+	test_vec3.x = (test_vec1.x + test_vec2.x) / 2; // 
+	test_vec3.y = (test_vec1.y + test_vec2.y) / 2;
+	double t1, t2, t3, t4, t5, t6;
+	t1 = dotProduct(g1s_arc_dir, test_vec1);
+	t2 = dotProduct(g1e_arc_dir, test_vec2);
+	t3 = dotProduct(g1m_arc_dir, test_vec3);
+	t4 = -dotProduct(g2e_arc_dir, test_vec1);
+	t5 = -dotProduct(g2s_arc_dir, test_vec2);
+	t6 = -dotProduct(g2m_arc_dir, test_vec3);
+
+	if (dotProduct(g1s_arc_dir, test_vec1) >= region_limitation_dis_tolerance && \
+		dotProduct(g1e_arc_dir, test_vec2) >= region_limitation_dis_tolerance && \
+		dotProduct(g1m_arc_dir, test_vec3) >= region_limitation_dis_tolerance && \
+		- dotProduct(g2e_arc_dir, test_vec1) >= region_limitation_dis_tolerance && \
+		- dotProduct(g2s_arc_dir, test_vec2) >= region_limitation_dis_tolerance && \
+		- dotProduct(g2m_arc_dir, test_vec3) >= region_limitation_dis_tolerance
+		)
+		return TRUE;
+	return FALSE;
+}
+
+
+PairGroupList* pairGroupListInit(int length)
+{
+	if (length <= 0)
+		error("paired groups length less equal than 0");
+	PairGroupList* pairGroupList = (PairGroupList*)malloc(sizeof(PairGroupList));
+	pairGroupList->length = length;
+	pairGroupList->pairGroup = (PairGroup*)malloc(sizeof(PairGroup) * length);
+	if (pairGroupList->pairGroup == NULL)
+		error("pairGroupListInit,not enough memory");
+	return pairGroupList;
+}
 
 
 //输入
@@ -937,12 +1034,120 @@ PairGroupList* getValidInitialEllipseSet(double* lines, int line_num, vector<vec
 			{
 				info = calcEllipseParametersAndValidate(lines, line_num, groups, i, -1, (fitMatrixes + i * 36), NULL, angles, distance_tolerance, supportInliersNum, &ellipara);
 				salient_num++;
-
+				if (info == FALSE)
+				{
+					continue;
+					error("getValidInitialEllipseSet, selection of salient ellipses failed!");//这种情况会出现？？,跑54.jpg出现该问题
+				}
+				PairGroupNode* node = (PairGroupNode*)malloc(sizeof(PairGroupNode));
+				node->center.x = ellipara.x;
+				node->center.y = ellipara.y;
+				node->axis.x = ellipara.a;
+				node->axis.y = ellipara.b;
+				node->phi = ellipara.phi;
+				node->pairGroupInd.x = i;
+				node->pairGroupInd.y = -1;//无
+				if (head != NULL)
+				{
+					tail->next = node;
+					tail = node;
+				}
+				else
+				{
+					head = tail = node;
+				}
+				pairlength++;
 			}
 		}
-
 	}
-	cout << "salient num = " << salient_num << endl;
+	//cout << "salient num = " << salient_num << endl;
+	//cout << "pairlength:" << pairlength << endl;
+	//selection of pair group hypothesis
+	for (i = 1; i < groupsNum - 1; i++)
+		for (j = i + 1; j < groupsNum; j++)
+		{
+			//加入极性判断,只提取指定极性的椭圆
+			if (specified_polarity == 0 || (lines[(*groups)[i][0] * 8 + 7] == specified_polarity))
+			{
+				//group i 's polarity is the same as group j; and the number of two paired groups should be >= 3.
+				if (lines[(*groups)[i][0] * 8 + 7] == lines[(*groups)[j][0] * 8 + 7] && ((*groups)[i].size() + (*groups)[j].size()) >= 3)
+				{
+					ind_start = (*groups)[i][0];//第i组的最开始一条线段索引
+					ind_end = (*groups)[i][(*groups)[i].size() - 1];//第i组的最后一条线段索引
+					pointG1s.x = lines[ind_start * 8]; // 第i组的最开始一条线段的开头点x
+					pointG1s.y = lines[ind_start * 8 + 1]; // 第i组的最开始一条线段的开头点y
+					g1s_ls_dir.x = lines[ind_start * 8 + 4]; // dx
+					g1s_ls_dir.y = lines[ind_start * 8 + 5]; // dy
+					pointG1e.x = lines[ind_end * 8 + 2]; // 第i组的最后一条线段的尾部点x 
+					pointG1e.y = lines[ind_end * 8 + 3]; // 第i组的最后一条线段的尾部点y
+					g1e_ls_dir.x = lines[ind_end * 8 + 4]; // dx
+					g1e_ls_dir.y = lines[ind_end * 8 + 5]; // dy
+					ind_start = (*groups)[j][0];//第j组的最开始一条线段索引
+					ind_end = (*groups)[j][(*groups)[j].size() - 1];//第j组的最后一条线段索引
+					pointG2s.x = lines[ind_start * 8];
+					pointG2s.y = lines[ind_start * 8 + 1];
+					g2s_ls_dir.x = lines[ind_start * 8 + 4];
+					g2s_ls_dir.y = lines[ind_start * 8 + 5];
+					pointG2e.x = lines[ind_end * 8 + 2];
+					pointG2e.y = lines[ind_end * 8 + 3];
+					g2e_ls_dir.x = lines[ind_end * 8 + 4];
+					g2e_ls_dir.y = lines[ind_end * 8 + 5];
+					polarity = lines[ind_start * 8 + 7]; //i,j两组的极性
+					if (regionLimitation(pointG1s, g1s_ls_dir, pointG1e, g1e_ls_dir, pointG2s, g2s_ls_dir, pointG2e, g2e_ls_dir, polarity, -3 * distance_tolerance))//都在彼此的线性区域内
+					{
+						if (calcEllipseParametersAndValidate(lines, line_num, groups, i, j, (fitMatrixes + i * 36), (fitMatrixes + j * 36), angles, distance_tolerance, supportInliersNum, &ellipara))//二次一般方程线性求解，线段的内点支持比例
+						{
+							PairGroupNode* node = (PairGroupNode*)malloc(sizeof(PairGroupNode));
+							node->center.x = ellipara.x;
+							node->center.y = ellipara.y;
+							node->axis.x = ellipara.a; 
+							node->axis.y = ellipara.b;
+							node->phi = ellipara.phi;
+							node->pairGroupInd.x = i;
+							node->pairGroupInd.y = -1;//无
+							node->pairGroupInd.x = i;
+							node->pairGroupInd.y = -1;//无
+							if (head != NULL)
+							{
+								tail->next = node;
+								tail = node;
+							}
+							else
+							{
+								head = tail = node;
+							}
+							pairlength++;
+						}
+					}	
+				}
+			}
+		}
+	if (pairlength > 0)
+	{
+		PairGroupNode* p;
+		p = head;
+		pairGroupList = pairGroupListInit(pairlength);
+		for (int i = 0; i < pairGroupList->length; i++)
+		{
+			pairGroupList->pairGroup[i].center.x = p->center.x;
+			pairGroupList->pairGroup[i].center.y = p->center.y;
+			pairGroupList->pairGroup[i].axis.x = p->axis.x;
+			pairGroupList->pairGroup[i].axis.y = p->axis.y;
+			pairGroupList->pairGroup[i].phi = p->phi;
+			pairGroupList->pairGroup[i].pairGroupInd.x = p->pairGroupInd.x;//记录组对(i,j),由groups中的第i个组和第j个组构成的匹配组产生该有效椭圆参数
+			pairGroupList->pairGroup[i].pairGroupInd.y = p->pairGroupInd.y;
+			p = p->next;
+		}
+		tail->next = NULL;
+		while (head != NULL)
+		{
+			p = head;
+			head = head->next;
+			free(p);
+		}
+	}
+	free(supportInliersNum);//释放存储各个组的支持内点数量的数组
+	free(fitMatrixes);//释放存储各个组的拟合矩阵
 	return pairGroupList;
 }
 
@@ -1035,7 +1240,22 @@ int main()
 	int  candidates_num = 0;//候选椭圆数量
 	int specified_polarity = 0;//1,指定检测的椭圆极性要为正; -1指定极性为负; 0表示两种极性椭圆都检测
 	pairGroupList = getValidInitialEllipseSet(out, n, &groups, coverages, angles, distance_tolerance, specified_polarity);
-
+	if (pairGroupList != NULL)
+	{
+		cout <<"The number of initial ellipses:"<<pairGroupList->length << endl;
+		double param[5];
+		param[0] = pairGroupList->pairGroup[1].center.x;
+		param[1] = pairGroupList->pairGroup[1].center.y;
+		param[2] = pairGroupList->pairGroup[1].axis.x;
+		param[3] = pairGroupList->pairGroup[1].axis.y;
+		param[4] = pairGroupList->pairGroup[1].phi;
+		Mat img;
+		img = imread("C:/Users/65406/source/repos/EllipseDetect/EllipseDetect/ce1.png");
+		drawEllipse(img, param);
+		
+		
+		
+	}
 
 
 
